@@ -7,6 +7,7 @@ import (
 	"math/rand"
 	"net/http"
 	"os"
+	"os/exec"
 	"strings"
 	"time"
 )
@@ -18,6 +19,8 @@ func main() {
 	downloadShow(url, tuesday)
 
 	createSVGLogo()
+
+	exec.Command("inkscape", "mix_image.svg", "--export-png=mix_image.png").Run()
 
 }
 
@@ -44,16 +47,12 @@ func createSVGLogo() {
 </svg>`
 
 	f, err := os.Create("mix_image.svg")
-	if err != nil {
-		log.Fatal(err)
-	}
+	check(err)
 
 	defer f.Close()
 
 	_, err = f.WriteString(svg)
-	if err != nil {
-		log.Fatal(err)
-	}
+	check(err)
 }
 
 func pickRandomValuesFromAry(listOfNumbers []int, numbersToPick int) []int {
