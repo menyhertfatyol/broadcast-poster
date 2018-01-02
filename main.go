@@ -14,7 +14,7 @@ import (
 
 func main() {
 	tuesday := getLastTuesday()
-	url := "https://archive.tilos.hu/download/tilos-" + tuesday + "-210000-220000.mp3"
+	url := "https://archive.tilos.hu/cache/tilos-" + tuesday + "-210000-220000.mp3"
 
 	downloadShow(url, tuesday)
 
