@@ -1,27 +1,94 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"log"
 	"math/rand"
+	"mime/multipart"
 	"net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 )
 
 func main() {
-	tuesday := getLastTuesday()
-	url := "https://archive.tilos.hu/cache/tilos-" + tuesday + "-210000-220000.mp3"
+	lastTuesday := getLastTuesday()
 
-	downloadShow(url, tuesday)
+	url := "https://archive.tilos.hu/cache/tilos-" + lastTuesday.Format("20060102") + "-210000-220000.mp3"
+
+	downloadShow(url, lastTuesday.Format("20060102"))
 
 	createSVGLogo()
 
 	exec.Command("inkscape", "mix_image.svg", "--export-png=mix_image.png").Run()
 
+	audiopath, _ := os.Getwd()
+	audiopath += "/keddestidrogmusor-" + lastTuesday.Format("20060102") + ".mp3"
+	imgPath, _ := os.Getwd()
+	imgPath += "/mix_image.png"
+	extraParams := map[string]string{
+		"name":        "Keddestidrogműsor - " + lastTuesday.Format("2006.01.02") + "-i Adás",
+		"tags-0-tag":  "Tilos Radio",
+		"tags-2-tag":  "FM 90.3",
+		"tags-3-tag":  "Drog",
+		"description": "Drogpolitikai magazinműsor kedd esténként",
+	}
+	request, err := newMixcloudUploadRequest("https://api.mixcloud.com//upload/?access_token="+os.Getenv("ACCESS_TOKEN"), extraParams, "mp3", audiopath, "picture", imgPath)
+	check(err)
+	client := &http.Client{}
+	resp, err := client.Do(request)
+	if err != nil {
+		log.Fatal(err)
+	} else {
+		body := &bytes.Buffer{}
+		_, err := body.ReadFrom(resp.Body)
+		if err != nil {
+			log.Fatal(err)
+		}
+		resp.Body.Close()
+		fmt.Println(resp.StatusCode)
+		fmt.Println(resp.Header)
+		fmt.Println(body)
+	}
+
+}
+
+func newMixcloudUploadRequest(uri string, params map[string]string, mp3param, mp3path, imgParam, imgPath string) (*http.Request, error) {
+	file, err := os.Open(mp3path)
+	check(err)
+	defer file.Close()
+
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+	mp3Part, err := writer.CreateFormFile(mp3param, filepath.Base(mp3path))
+	check(err)
+
+	_, err = io.Copy(mp3Part, file)
+
+	imgFile, err := os.Open(imgPath)
+	check(err)
+	defer imgFile.Close()
+
+	imgPart, err := writer.CreateFormFile(imgParam, imgPath)
+	check(err)
+
+	_, err = io.Copy(imgPart, imgFile)
+
+	for key, val := range params {
+		_ = writer.WriteField(key, val)
+	}
+	err = writer.Close()
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", uri, body)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	return req, err
 }
 
 func createSVGLogo() {
@@ -79,12 +146,12 @@ func downloadShow(url, dateOfShow string) {
 	file.Close()
 }
 
-func getLastTuesday() string {
+func getLastTuesday() time.Time {
 	currentDate := time.Now()
 	for currentDate.Weekday() != time.Tuesday {
 		currentDate = currentDate.AddDate(0, 0, -1)
 	}
-	return currentDate.Format("20060102")
+	return currentDate
 }
 
 func check(e error) {
