@@ -16,9 +16,9 @@ import (
 )
 
 func main() {
-	lastTuesday := getLastTuesday()
 
-	url := "https://archive.tilos.hu/cache/tilos-" + lastTuesday.Format("20060102") + "-210000-220000.mp3"
+	lastTuesday := getLastTuesday()
+	url := "https://archive.tilos.hu/cache/tilos-" + lastTuesday.Format("20060102") + "-210000-223000.mp3"
 
 	downloadShow(url, lastTuesday.Format("20060102"))
 
@@ -26,8 +26,8 @@ func main() {
 
 	exec.Command("inkscape", "mix_image.svg", "--export-png=mix_image.png").Run()
 
-	audiopath, _ := os.Getwd()
-	audiopath += "/keddestidrogmusor-" + lastTuesday.Format("20060102") + ".mp3"
+	audioPath, _ := os.Getwd()
+	audioPath += "/keddestidrogmusor-" + lastTuesday.Format("20060102") + ".mp3"
 	imgPath, _ := os.Getwd()
 	imgPath += "/mix_image.png"
 	extraParams := map[string]string{
@@ -37,7 +37,8 @@ func main() {
 		"tags-3-tag":  "Drog",
 		"description": "Drogpolitikai magazinműsor kedd esténként",
 	}
-	request, err := newMixcloudUploadRequest("https://api.mixcloud.com//upload/?access_token="+os.Getenv("ACCESS_TOKEN"), extraParams, "mp3", audiopath, "picture", imgPath)
+
+	request, err := newMixcloudUploadRequest("https://api.mixcloud.com//upload/?access_token="+os.Getenv("ACCESS_TOKEN"), extraParams, "mp3", audioPath, "picture", imgPath)
 	check(err)
 	client := &http.Client{}
 	resp, err := client.Do(request)
@@ -55,16 +56,24 @@ func main() {
 		fmt.Println(body)
 	}
 
+	defer cleanupFiles([]string{audioPath, imgPath, "mix_image.svg"})
+
 }
 
-func newMixcloudUploadRequest(uri string, params map[string]string, mp3param, mp3path, imgParam, imgPath string) (*http.Request, error) {
-	file, err := os.Open(mp3path)
+func cleanupFiles(fileList []string) {
+	for _, file := range fileList {
+		os.Remove(file)
+	}
+}
+
+func newMixcloudUploadRequest(uri string, params map[string]string, mp3param, mp3Path, imgParam, imgPath string) (*http.Request, error) {
+	file, err := os.Open(mp3Path)
 	check(err)
 	defer file.Close()
 
 	body := &bytes.Buffer{}
 	writer := multipart.NewWriter(body)
-	mp3Part, err := writer.CreateFormFile(mp3param, filepath.Base(mp3path))
+	mp3Part, err := writer.CreateFormFile(mp3param, filepath.Base(mp3Path))
 	check(err)
 
 	_, err = io.Copy(mp3Part, file)
