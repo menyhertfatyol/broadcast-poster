@@ -27,6 +27,8 @@ func main() {
 
 	if isValidURL(url) {
 		htmlBody = getURLBodyString(url)
+	} else {
+		log.Fatal("Invalid episode url")
 	}
 
 	jsonBytes := []byte(htmlBody)
