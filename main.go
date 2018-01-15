@@ -93,14 +93,14 @@ func cleanupFiles(fileList []string) {
 	}
 }
 
-func newMixcloudUploadRequest(uri string, params map[string]string, mp3param, mp3Path, imgParam, imgPath string) (*http.Request, error) {
+func newMixcloudUploadRequest(uri string, params map[string]string, mp3Param, mp3Path, imgParam, imgPath string) (*http.Request, error) {
 	file, err := os.Open(mp3Path)
 	check(err)
 	defer file.Close()
 
 	body := &bytes.Buffer{}
 	writer := multipart.NewWriter(body)
-	mp3Part, err := writer.CreateFormFile(mp3param, filepath.Base(mp3Path))
+	mp3Part, err := writer.CreateFormFile(mp3Param, filepath.Base(mp3Path))
 	check(err)
 
 	_, err = io.Copy(mp3Part, file)
