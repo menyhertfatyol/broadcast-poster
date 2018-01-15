@@ -2,8 +2,10 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"math/rand"
 	"mime/multipart"
@@ -18,9 +20,32 @@ import (
 func main() {
 
 	lastTuesday := getLastTuesday()
-	url := "https://archive.tilos.hu/cache/tilos-" + lastTuesday.Format("20060102") + "-210000-223000.mp3"
 
-	downloadShow(url, lastTuesday.Format("20060102"))
+	url := "https://tilos.hu/api/v1/episode/keddidrog/" + lastTuesday.Format("2006") + "/" + lastTuesday.Format("01") + "/" + lastTuesday.Format("02")
+
+	var htmlBody string
+
+	if isValidURL(url) {
+		htmlBody = getURLBodyString(url)
+	}
+
+	jsonBytes := []byte(htmlBody)
+
+	var episodeJSON interface{}
+
+	if err := json.Unmarshal(jsonBytes, &episodeJSON); err != nil {
+		log.Fatal(err)
+	}
+
+	name := fmt.Sprint(episodeJSON.(map[string]interface{})["text"].(map[string]interface{})["title"])
+	description := fmt.Sprint(episodeJSON.(map[string]interface{})["text"].(map[string]interface{})["content"])
+	mp3 := strings.TrimRight(fmt.Sprint(episodeJSON.(map[string]interface{})["m3uUrl"]), ".m3u") + ".mp3"
+
+	if isValidURL(mp3) {
+		downloadShow(mp3, lastTuesday.Format("20060102"))
+	} else {
+		log.Fatal("Invalid mp3 url")
+	}
 
 	createSVGLogo()
 
@@ -31,11 +56,11 @@ func main() {
 	imgPath, _ := os.Getwd()
 	imgPath += "/mix_image.png"
 	extraParams := map[string]string{
-		"name":        "Keddestidrogműsor - " + lastTuesday.Format("2006.01.02") + "-i Adás",
+		"name":        lastTuesday.Format("2006.01.02") + " - " + name,
 		"tags-0-tag":  "Tilos Radio",
 		"tags-2-tag":  "FM 90.3",
 		"tags-3-tag":  "Drog",
-		"description": "Drogpolitikai magazinműsor kedd esténként",
+		"description": description,
 	}
 
 	request, err := newMixcloudUploadRequest("https://api.mixcloud.com//upload/?access_token="+os.Getenv("ACCESS_TOKEN"), extraParams, "mp3", audioPath, "picture", imgPath)
@@ -77,6 +102,7 @@ func newMixcloudUploadRequest(uri string, params map[string]string, mp3param, mp
 	check(err)
 
 	_, err = io.Copy(mp3Part, file)
+	check(err)
 
 	imgFile, err := os.Open(imgPath)
 	check(err)
@@ -86,6 +112,7 @@ func newMixcloudUploadRequest(uri string, params map[string]string, mp3param, mp
 	check(err)
 
 	_, err = io.Copy(imgPart, imgFile)
+	check(err)
 
 	for key, val := range params {
 		_ = writer.WriteField(key, val)
@@ -153,6 +180,20 @@ func downloadShow(url, dateOfShow string) {
 	_, err = io.Copy(file, response.Body)
 	check(err)
 	file.Close()
+}
+
+func getURLBodyString(url string) string {
+	resp, err := http.Get(url)
+	check(err)
+	defer resp.Body.Close()
+	body, err := ioutil.ReadAll(resp.Body)
+	check(err)
+	return string(body)
+}
+
+func isValidURL(url string) bool {
+	_, err := http.Get(url)
+	return err == nil
 }
 
 func getLastTuesday() time.Time {
