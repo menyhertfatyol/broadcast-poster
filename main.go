@@ -39,9 +39,9 @@ func main() {
 		log.Fatal(err)
 	}
 
-	name := fmt.Sprint(episodeJSON.(map[string]interface{})["text"].(map[string]interface{})["title"])
-	description := fmt.Sprint(episodeJSON.(map[string]interface{})["text"].(map[string]interface{})["content"])
-	mp3 := strings.TrimRight(fmt.Sprint(episodeJSON.(map[string]interface{})["m3uUrl"]), ".m3u") + ".mp3"
+	name := episodeJSON.(map[string]interface{})["text"].(map[string]string)["title"]
+	description := episodeJSON.(map[string]interface{})["text"].(map[string]string)["content"]
+	mp3 := strings.TrimRight(episodeJSON.(map[string]string)["m3uUrl"], ".m3u") + ".mp3"
 
 	if isValidURL(mp3) {
 		downloadShow(mp3, lastTuesday.Format("20060102"))
