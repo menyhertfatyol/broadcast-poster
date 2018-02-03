@@ -23,18 +23,17 @@ func main() {
 
 	url := "https://tilos.hu/api/v1/episode/keddidrog/" + lastTuesday.Format("2006") + "/" + lastTuesday.Format("01") + "/" + lastTuesday.Format("02")
 
-	var htmlBody string
+	var jsonBytes []byte
 
 	URLResponse, URLerr := http.Get(url)
 	if URLerr != nil {
 		log.Fatal(URLerr)
 	} else if URLResponse.StatusCode == 200 {
-		htmlBody = getHTMLBodyString(URLResponse)
+		jsonBytes = getHTMLBodyBytes(URLResponse)
 	} else {
 		fmt.Println("The following url seems to be broken:", url)
 	}
 
-	jsonBytes := []byte(htmlBody)
 	var episodeJSON episode
 
 	if err := json.Unmarshal(jsonBytes, &episodeJSON); err != nil {
@@ -195,11 +194,11 @@ func downloadShow(r *http.Response, dateOfShow string) {
 	file.Close()
 }
 
-func getHTMLBodyString(r *http.Response) string {
+func getHTMLBodyBytes(r *http.Response) []byte {
 	defer r.Body.Close()
 	body, err := ioutil.ReadAll(r.Body)
 	check(err)
-	return string(body)
+	return []byte(body)
 }
 
 func getLastTuesday() time.Time {
