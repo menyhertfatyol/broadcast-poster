@@ -25,28 +25,29 @@ func main() {
 
 	var htmlBody string
 
-	if isValidURL(url) {
-		htmlBody = getURLBodyString(url)
+	URLResponse, URLerr := http.Get(url)
+	if URLerr != nil {
+		log.Fatal(URLerr)
+	} else if URLResponse.StatusCode == 200 {
+		htmlBody = getHTMLBodyString(URLResponse)
 	} else {
-		log.Fatal("Invalid episode url")
+		fmt.Println("The following url seems to be broken:", url)
 	}
 
 	jsonBytes := []byte(htmlBody)
-
-	var episodeJSON interface{}
+	var episodeJSON episode
 
 	if err := json.Unmarshal(jsonBytes, &episodeJSON); err != nil {
 		log.Fatal(err)
 	}
 
-	name := fmt.Sprint(episodeJSON.(map[string]interface{})["text"].(map[string]interface{})["title"])
-	description := fmt.Sprint(episodeJSON.(map[string]interface{})["text"].(map[string]interface{})["content"])
-	mp3 := strings.TrimRight(fmt.Sprint(episodeJSON.(map[string]interface{})["m3uUrl"]), ".m3u") + ".mp3"
-
-	if isValidURL(mp3) {
-		downloadShow(mp3, lastTuesday.Format("20060102"))
+	mp3Response, err := http.Get(episodeJSON.mp3Url())
+	if err != nil {
+		log.Fatal(err)
+	} else if mp3Response.StatusCode == 200 {
+		downloadShow(mp3Response, lastTuesday.Format("20060102"))
 	} else {
-		log.Fatal("Invalid mp3 url")
+		fmt.Println("The following url seems to be broken:", url)
 	}
 
 	createSVGLogo()
@@ -58,14 +59,14 @@ func main() {
 	imgPath, _ := os.Getwd()
 	imgPath += "/mix_image.png"
 	extraParams := map[string]string{
-		"name":        lastTuesday.Format("2006.01.02") + " - " + name,
+		"name":        lastTuesday.Format("2006.01.02") + " - " + episodeJSON.Text.Title,
 		"tags-0-tag":  "Tilos Radio",
 		"tags-2-tag":  "FM 90.3",
 		"tags-3-tag":  "Drog",
-		"description": description,
+		"description": episodeJSON.Text.Content,
 	}
 
-	request, err := newMixcloudUploadRequest("https://api.mixcloud.com//upload/?access_token="+os.Getenv("ACCESS_TOKEN"), extraParams, "mp3", audioPath, "picture", imgPath)
+	request, err := newMixcloudUploadRequest("https://api.mixcloud.com//upload/?access_token="+os.Getenv("MIXCLOUD_ACCESS_TOKEN"), extraParams, "mp3", audioPath, "picture", imgPath)
 	check(err)
 	client := &http.Client{}
 	resp, err := client.Do(request)
@@ -85,6 +86,18 @@ func main() {
 
 	defer cleanupFiles([]string{audioPath, imgPath, "mix_image.svg"})
 
+}
+
+type episode struct {
+	Text struct {
+		Title   string `json:"title"`
+		Content string `json:"content"`
+	} `json:"text"`
+	M3uURL string `json:"m3uUrl"`
+}
+
+func (e episode) mp3Url() string {
+	return strings.Split(e.M3uURL, ".m3u")[0] + ".mp3"
 }
 
 func cleanupFiles(fileList []string) {
@@ -170,32 +183,23 @@ func pickRandomValuesFromAry(listOfNumbers []int, numbersToPick int) []int {
 	return numbersPicked
 }
 
-func downloadShow(url, dateOfShow string) {
+func downloadShow(r *http.Response, dateOfShow string) {
 
-	response, err := http.Get(url)
-	check(err)
-	defer response.Body.Close()
+	defer r.Body.Close()
 
-	file, err := os.Create("keddestidrogmusor-" + dateOfShow + ".mp3")
-	check(err)
+	file, fileerr := os.Create("keddestidrogmusor-" + dateOfShow + ".mp3")
+	check(fileerr)
 
-	_, err = io.Copy(file, response.Body)
+	_, err := io.Copy(file, r.Body)
 	check(err)
 	file.Close()
 }
 
-func getURLBodyString(url string) string {
-	resp, err := http.Get(url)
-	check(err)
-	defer resp.Body.Close()
-	body, err := ioutil.ReadAll(resp.Body)
+func getHTMLBodyString(r *http.Response) string {
+	defer r.Body.Close()
+	body, err := ioutil.ReadAll(r.Body)
 	check(err)
 	return string(body)
-}
-
-func isValidURL(url string) bool {
-	_, err := http.Get(url)
-	return err == nil
 }
 
 func getLastTuesday() time.Time {
